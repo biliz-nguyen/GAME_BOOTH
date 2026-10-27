@@ -1,38 +1,33 @@
-# FLOÉ Joy Arcade — GAME_BOOTH
+# FLOÉ Joy Arcade
 
-Production-oriented booth minigames: 20-card memory matching and 3D plush claw machine.
+FLOÉ booth arcade: 20-card **Flip the Charm** memory game and interactive 3D **Catch Your Joy** claw machine.
 
-## Gameplay
-- Preview: 6 seconds, followed by 30 seconds of matching with unlimited attempts.
-- 5+ pairs: one claw drop. 3–4 pairs: two candies at booth. 0–2 pairs: consolation.
-- 24–28 randomized plush toys; the claw automatically holds a toy when aimed correctly and dropped.
-- One staff-issued code allows one start. Refreshing or changing devices cannot reuse a code.
+## Rules (October 2026)
+- All 20 cards are shown for 6 seconds.
+- The memory phase lasts **20 seconds**, with no restriction on the number of card-pair attempts.
+- **5+ matching pairs** unlock the 3D claw machine.
+- **3–4 matching pairs** show a result of **2 candies**.
+- **0–2 matching pairs** show a consolation message.
+- Players can **start another round any time**: no per-browser or per-person lock.
+- The claw machine allows **another claw attempt if the previous attempt missed** (caught=false). A successful catch ends that claw sequence, displays a prize, and the player may start a fresh round.
+- On a successful catch, the browser randomly selects a prize with fixed weights: **100 voucher 5%, 40 regular keychains, 1 handmade keychain** (total 141). These are weights, not live inventory.
 
-## Infrastructure
-- Source: https://github.com/biliz-nguyen/GAME_BOOTH (main)
-- Vercel: floe-game-booth (automatic deployment on main)
-- Supabase: project etozewzatjchbyrgtorw (GAME_BOOTH)
-- Edge Function: https://etozewzatjchbyrgtorw.supabase.co/functions/v1/arcade-entry
-- Client begins with {action:'begin',code:'FLOE-...'} and finishes with {action:'finish',token,matches,caught}.
+## Site and deployment
+- Repository: https://github.com/biliz-nguyen/GAME_BOOTH
+- Vercel project: `floe-game-booth`
+- Production domain: https://floe-game-booth.vercel.app
+- Default Git branch: `main`.
+- Precompiled static website (`index.html`, `assets/`). No build step needed.
+- Includes FLOÉ logo assets, Vietnamese font assets, cards, 3D scene and mobile controls.
 
-## Staff instructions: export 100 existing single-use codes
-Open Supabase project etozewzatjchbyrgtorw -> SQL Editor. Run the following query and export as CSV:
-```sql
-select sc.code, case when ec.activated_at is null then 'UNUSED' else 'USED' end as status, ec.activated_at, ec.finished_at
-from arcade_private.staff_codes sc join arcade_private.entry_codes ec using(code_hash)
-order by sc.created_at, sc.code;
-```
-Give each customer exactly one unique code. Do not commit these private codes to GitHub.
-To create 100 more codes, run:
-```sql
-select arcade_private.issue_staff_codes(100);
-```
+## Operational notes
+- **No entry codes, OTP, QR tokens, personal identifiers, or participation restrictions.** A shared QR can point directly to the production homepage.
+- **No automatic prize inventory deduction or prize code issuance.** Prizes are announced on the phone screen and managed manually by booth staff.
+- **No external Supabase call is made by the production game.** Legacy Supabase structures from earlier prototypes are not part of this public game flow.
+- Because results and prize randomization are handled in client JavaScript, screenshots can be reused and results can be manipulated. Staff must independently decide how physical gifts are issued. Unlimited replays do **not** enforce prize-claim limits.
+- The numerical prize weights (100/40/1) do not decrease if physical items run out. Change the prize logic manually as needed.
 
-## Security / prize limitations
-- Single-use participation is enforced transactionally in Supabase, but one PERSON = one code requires staff checking distribution.
-- An opened play code remains used even if the guest closes the page.
-- Browser-generated gameplay results can be manipulated. Database only records pending staff verification; it does not issue prizes or decrement stock yet.
-- Prize stock is preconfigured as 100 vouchers / 50 keychains / 1 handmade keychain, but automated claims are disabled pending authoritative validation.
-- Never expose service_role or other secret keys in frontend or public GitHub.
-- Private tables are protected with RLS and blocked for anon/authenticated database roles.
-- Before unsupervised production rollout: implement server-validated rewards, rate limits, and a staff redemption interface.
+## Notes for maintainers
+- The existing compiled JS bundle is `assets/index-Bb9PN9JV.js`. Keep HTML asset references consistent after edits.
+- Before deploying any edits, check JS syntax: `node --check assets/index-Bb9PN9JV.js`.
+- Test memory timing, success and failure results, 3D/fallback rendering, repeated claw misses, successful catches, new round, and mobile layout.
