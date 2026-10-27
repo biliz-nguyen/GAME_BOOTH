@@ -1,12 +1,38 @@
 # FLOÉ Joy Arcade — GAME_BOOTH
 
-Playable FLOÉ booth arcade: 20-card memory game and 3D claw machine.
+Production-oriented booth minigames: 20-card memory matching and 3D plush claw machine.
 
-## Source status
-This repository preserves the **deployed, compiled web assets** from the verified Vercel deployment `dpl_GBJBoeYDWZV5fgyBTWfdKvP8y6mb` (27 Oct 2026), including HTML, CSS, minified JavaScript, SVGs, logos and fonts. **The original unminified React/Three.js project source is not part of this deployment snapshot.** Treat this as a working baseline; future enhancements should restore a maintainable source project rather than editing minified bundles long-term.
+## Gameplay
+- Preview: 6 seconds, followed by 30 seconds of matching with unlimited attempts.
+- 5+ pairs: one claw drop. 3–4 pairs: two candies at booth. 0–2 pairs: consolation.
+- 24–28 randomized plush toys; the claw automatically holds a toy when aimed correctly and dropped.
+- One staff-issued code allows one start. Refreshing or changing devices cannot reuse a code.
 
-## Deploy
-Static files are at repository root, with `index.html`, `assets/`, and `vercel.json`. Vercel project: Framework **Other**, no install/build command, output directory **.** (root). Do not point the project at `src/`.
+## Infrastructure
+- Source: https://github.com/biliz-nguyen/GAME_BOOTH (main)
+- Vercel: floe-game-booth (automatic deployment on main)
+- Supabase: project etozewzatjchbyrgtorw (GAME_BOOTH)
+- Edge Function: https://etozewzatjchbyrgtorw.supabase.co/functions/v1/arcade-entry
+- Client begins with {action:'begin',code:'FLOE-...'} and finishes with {action:'finish',token,matches,caught}.
 
-## IMPORTANT: Real prize safety
-This baseline does **not** implement authoritative one-person-one-play enforcement, server-side single-use booth codes, or atomic prize stock/claim tracking. Client-side gameplay is not proof of eligibility. **Do not use this snapshot alone to issue real vouchers/prizes**. Staff must verify claims independently until server-side authentication and prize inventory are implemented.
+## Staff instructions: export 100 existing single-use codes
+Open Supabase project etozewzatjchbyrgtorw -> SQL Editor. Run the following query and export as CSV:
+```sql
+select sc.code, case when ec.activated_at is null then 'UNUSED' else 'USED' end as status, ec.activated_at, ec.finished_at
+from arcade_private.staff_codes sc join arcade_private.entry_codes ec using(code_hash)
+order by sc.created_at, sc.code;
+```
+Give each customer exactly one unique code. Do not commit these private codes to GitHub.
+To create 100 more codes, run:
+```sql
+select arcade_private.issue_staff_codes(100);
+```
+
+## Security / prize limitations
+- Single-use participation is enforced transactionally in Supabase, but one PERSON = one code requires staff checking distribution.
+- An opened play code remains used even if the guest closes the page.
+- Browser-generated gameplay results can be manipulated. Database only records pending staff verification; it does not issue prizes or decrement stock yet.
+- Prize stock is preconfigured as 100 vouchers / 50 keychains / 1 handmade keychain, but automated claims are disabled pending authoritative validation.
+- Never expose service_role or other secret keys in frontend or public GitHub.
+- Private tables are protected with RLS and blocked for anon/authenticated database roles.
+- Before unsupervised production rollout: implement server-validated rewards, rate limits, and a staff redemption interface.
