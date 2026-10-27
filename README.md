@@ -36,3 +36,32 @@ select arcade_private.issue_staff_codes(100);
 - Never expose service_role or other secret keys in frontend or public GitHub.
 - Private tables are protected with RLS and blocked for anon/authenticated database roles.
 - Before unsupervised production rollout: implement server-validated rewards, rate limits, and a staff redemption interface.
+
+## Shared QR Preview: redemption at the counter
+
+Preview is deployed from branch `preview/single-qr-mobile` and is separate from `main`. A browser can start only once (device-local storage + an atomic Supabase row). This is **not identity verification**; clearing browser storage or another browser can create a new attempt.
+
+After a successful catch (or 3–4 matching pairs for candy), the game calls the `arcade-guest-preview` Edge Function which issues a unique **pickup reference** (`J` + 10 hex characters). It is recorded in `arcade_private.guest_browser_attempts.claim_code` and cannot be reissued for the same attempt.
+
+The staff web page is at **`/staff.html`** on the Preview URL. Staff log in using **a separate Supabase Auth email/password account**. No public user or service credentials appear in the app. At present, no authorized staff account is configured, so the redemption UI cannot be used until the following setup is completed.
+
+### One-time staff account setup
+1. In Supabase **Authentication → Users → Add user**, create an account for the FLOÉ booth staff with a strong private password.
+2. In **SQL Editor**, run the following (replace the email with the email of the account you just created):
+```sql
+insert into arcade_private.staff_members(user_id)
+select id from auth.users where email = 'REPLACE_WITH_STAFF_EMAIL'
+on conflict(user_id) do update set enabled=true;
+```
+3. Open `/staff.html`, sign in, enter the 11-character pickup reference shown on the guest phone, and press **Kiểm tra mã**.
+4. Check the guest is actually at the booth and their game result is plausible. Select the **actual** prize being handed to them, then press **Xác nhận đã trao quà và trừ kho**.
+5. Database validates eligibility, stock and an unclaimed result, then decrements exactly one item. Subsequent attempts to redeem the same code are refused atomically.
+
+### Stock and redemption reporting
+```sql
+select prize_id,title,stock from arcade_private.prize_stock order by prize_id;
+select claim_code,prize_claimed,claimed_at from arcade_private.guest_browser_attempts
+where claimed_at is not null order by claimed_at desc limit 100;
+```
+
+**Important:** Claim results originate from the browser and can be forged; a code is **not a cryptographic attestation that the guest actually won**. Staff should visually check the game flow before handing out valuable prizes. The 1 QR demo does not include user identity verification or server-authoritative game scoring. Do not treat it as fraud-proof reward distribution.
